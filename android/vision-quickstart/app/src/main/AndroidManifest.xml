@@ -71,6 +71,11 @@
         </activity>
 
         <activity
+            android:name=".kotlin.DetectedObjectImageActivity"
+            android:exported="false"
+            android:theme="@style/AppTheme">
+        </activity>
+        <activity
             android:name=".java.StillImageActivity"
             android:exported="false"
             android:theme="@style/AppTheme">

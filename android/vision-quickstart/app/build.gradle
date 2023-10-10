@@ -150,6 +150,9 @@ dependencies {
     implementation "androidx.camera:camera-lifecycle:1.0.0-SNAPSHOT"
     implementation "androidx.camera:camera-view:1.0.0-SNAPSHOT"
 
+    implementation 'com.squareup.picasso:picasso:2.8'
+
+
     // On Device Machine Learnings
     implementation "com.google.android.odml:image:1.0.0-beta1"
 }
