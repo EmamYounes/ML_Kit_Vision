@@ -19,13 +19,15 @@ package com.google.mlkit.vision.demo.kotlin
 import android.content.Intent
 import android.content.res.Configuration
 import android.graphics.Bitmap
+import android.graphics.Rect
 import android.net.Uri
 import android.os.Build.VERSION_CODES
 import android.os.Bundle
-import android.provider.MediaStore
+import android.os.Environment
 import android.util.Log
 import android.util.Size
 import android.widget.CompoundButton
+import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.Toast
 import android.widget.ToggleButton
@@ -48,7 +50,9 @@ import com.google.mlkit.vision.objects.DetectedObject
 import com.google.mlkit.vision.objects.ObjectDetection
 import com.google.mlkit.vision.objects.ObjectDetector
 import com.google.mlkit.vision.objects.custom.CustomObjectDetectorOptions
-import java.io.ByteArrayOutputStream
+import java.io.File
+import java.io.FileOutputStream
+import java.io.IOException
 import java.util.Objects
 
 /** Live preview demo app for ML Kit APIs using CameraXSource API. */
@@ -185,81 +189,148 @@ class CameraXSourceDemoActivity : AppCompatActivity(), CompoundButton.OnCheckedC
                 Log.d(TAG, "previewsize is null")
             }
         }
+        val targetBorder = findViewById<FrameLayout>(R.id.target_border)
+        val targetBorderLocation = IntArray(2)
+        targetBorder.getLocationOnScreen(targetBorderLocation)
+        val targetBorderRect = Rect(
+            targetBorderLocation[0],
+            targetBorderLocation[1],
+            targetBorderLocation[0] + targetBorder.width,
+            targetBorderLocation[1] + targetBorder.height
+        )
         Log.v(TAG, "Number of object been detected: " + results.size)
         for (`object` in results) {
             graphicOverlay!!.add(ObjectGraphic(graphicOverlay!!, `object`))
-            val detectedObject = `object`
-            if (!isDetectedObjectImageActivityOpen && detectedObject.labels.isNotEmpty() &&
-                (detectedObject.labels[0].text.contains(
-                    "card",
-                    true
-                ) || detectedObject.labels[0].text.contains(
-                    "license",
-                    true
-                )) && detectedObject.labels[0].confidence > .75
-            ) {
+            val boundingBox = `object`.boundingBox
+            val screenArea = previewView!!.width * previewView!!.height.toFloat()
 
-                // Create an Intent to navigate to the DetectedObjectImageActivity
+            val objectArea = boundingBox.width() * boundingBox.height()
+            val percentage = (objectArea / screenArea)
+            val objectScreenRect = Rect(
+                translateX(boundingBox.left, previewView!!.width),
+                translateY(boundingBox.top, previewView!!.height),
+                translateX(boundingBox.right, previewView!!.width),
+                translateY(boundingBox.bottom, previewView!!.height)
+            )
 
-                // Create an Intent to navigate to the DetectedObjectImageActivity
+            val width = boundingBox.width()
+            val height = boundingBox.height()
+            val aspectRatio = width.toFloat() / height
+            val rectangleThreshold = 0.8 // You can adjust this threshold as needed
 
-                // Get the detected object image
-                val detectedObjectBitmap: Bitmap? =
-                    getCameraPreviewFrame()?.let { getDetectedObjectImage(`object`, it) }
-
-//                detectedObject.boundingBox.
-                val intent = Intent(this, DetectedObjectImageActivity::class.java)
-
-                // Pass the detected object image as an extra
-
-                // Pass the detected object image as an extra
-                intent.putExtra(
-                    "detectedObjectBitmap",
-                    detectedObjectBitmap?.let { bitmapToUri(it).toString() }
+            if (!isDetectedObjectImageActivityOpen && isRectWithinTargetBorder(
+                    objectScreenRect,
+                    targetBorderRect
                 )
+            ) {
+                // Check if the object is stable, preventing multiple captures of the same object
+                if (isObjectStable(boundingBox)) {
+                    graphicOverlay!!.add(ObjectGraphic(graphicOverlay!!, `object`))
 
-                // Start the new activity
+                    // Capture and send the image as a URI to DetectedObjectImageActivity
+                    val detectedImageUri = previewView?.bitmap?.let { bitmapToUri(it) }
+                    val intent = Intent(this, DetectedObjectImageActivity::class.java)
+                    intent.putExtra("detectedImageUri", detectedImageUri.toString())
+                    startActivity(intent)
 
-                // Start the new activity
-                startActivity(intent)
-
-                Toast.makeText(this, detectedObject.labels[0].text, Toast.LENGTH_LONG).show()
-                isDetectedObjectImageActivityOpen = true
-
+                    // Reset the flag to capture a new object
+                    isDetectedObjectImageActivityOpen = true
+                }
             }
+
+//            if (!isDetectedObjectImageActivityOpen && `object`.labels.isNotEmpty() &&
+//                aspectRatio >= rectangleThreshold && percentage > .95
+////                (`object`.labels[0].text.contains(
+////                    "card",
+////                    true
+////                ) || `object`.labels[0].text.contains(
+////                    "license",
+////                    true
+////                )) /*&& `object`.labels[0].confidence > .45*/ && percentage > .95
+//            ) {
+//
+//                // Create an Intent to navigate to the DetectedObjectImageActivity
+//
+//                val intent = Intent(this, DetectedObjectImageActivity::class.java)
+//                // Pass the detected object image as an extra
+//
+//                // Pass the detected object image as an extra
+//                intent.putExtra(
+//                    "detectedImageUri",
+//                    previewView?.bitmap?.let { bitmapToUri(it).toString() }
+//                )
+//                previewView?.bitmap?.let { bitmapToUri(it).toString() }
+//                    ?.let { Log.d("sssssssssssssssssssss", it) }
+//
+//                // Start the new activity
+//
+//                // Start the new activity
+//                startActivity(intent)
+//
+//                Toast.makeText(this, `object`.labels[0].text, Toast.LENGTH_LONG).show()
+//                isDetectedObjectImageActivityOpen = true
+
+//            }
         }
         graphicOverlay!!.add(InferenceInfoGraphic(graphicOverlay!!))
         graphicOverlay!!.postInvalidate()
     }
 
-    private fun getDetectedObjectImage(
-        detectedObject: DetectedObject,
-        fullImage: Bitmap
-    ): Bitmap {
-        // Retrieve the bounding box of the detected object
-        val boundingBox = detectedObject.boundingBox
+    private fun isRectWithinTargetBorder(rect: Rect, targetBorderRect: Rect): Boolean {
+        return Rect.intersects(rect, targetBorderRect)
+    }
 
-        // Crop the detected object from the full image using the bounding box
-        return Bitmap.createBitmap(
-            fullImage, 0, boundingBox.top, fullImage.width, boundingBox.height()*2
-        )
+    // Calculate the translated X-coordinate
+    private fun translateX(x: Int, previewViewWidth: Int): Int {
+        val screenWidth = resources.displayMetrics.widthPixels
+        return x / previewViewWidth * screenWidth
+    }
+
+    // Calculate the translated Y-coordinate
+    private fun translateY(y: Int, previewViewHeight: Int): Int {
+        val screenHeight = resources.displayMetrics.heightPixels
+        return y / previewViewHeight * screenHeight
+    }
+
+
+    private var previousBoundingBox: Rect? = null
+
+    private fun isObjectStable(currentBoundingBox: Rect): Boolean {
+        val threshold = 20 // Adjust this threshold as needed
+
+        val prevBoundingBox = previousBoundingBox
+        previousBoundingBox = currentBoundingBox
+
+        return if (prevBoundingBox != null) {
+            // Calculate the absolute difference between current and previous positions
+            val deltaX = kotlin.math.abs(currentBoundingBox.left - prevBoundingBox.left)
+            val deltaY = kotlin.math.abs(currentBoundingBox.top - prevBoundingBox.top)
+
+            // Check if the object has moved beyond the threshold
+            deltaX <= threshold && deltaY <= threshold
+        } else {
+            // If no previous bounding box is available, consider it stable
+            true
+        }
     }
 
     private fun bitmapToUri(bitmap: Bitmap): Uri? {
-        // Convert Bitmap to Uri
-        val bytes = ByteArrayOutputStream()
-        bitmap.compress(Bitmap.CompressFormat.JPEG, 100, bytes)
-        val path = MediaStore.Images.Media.insertImage(
-            contentResolver,
-            bitmap,
-            "DetectedObjectImage",
-            null
-        )
-        return Uri.parse(path)
-    }
+        val context = applicationContext
+        val imagesDir = context.getExternalFilesDir(Environment.DIRECTORY_PICTURES)
+        val timestamp = System.currentTimeMillis()
+        val imageFilename = "DetectedObjectImage_$timestamp.jpg"
+        val imageFile = File(imagesDir, imageFilename)
+        try {
+            val outputStream = FileOutputStream(imageFile)
+            bitmap.compress(Bitmap.CompressFormat.JPEG, 100, outputStream)
+            outputStream.flush()
+            outputStream.close()
+        } catch (e: IOException) {
+            e.printStackTrace()
+        }
 
-    private fun getCameraPreviewFrame(): Bitmap? {
-        return previewView?.bitmap
+        // Return the Uri of the saved image file
+        return Uri.fromFile(imageFile)
     }
 
     private fun onDetectionTaskFailure(e: Exception) {

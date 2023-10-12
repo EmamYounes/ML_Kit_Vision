@@ -14,9 +14,9 @@ class DetectedObjectImageActivity : AppCompatActivity() {
         setContentView(R.layout.activity_detected_object_image)
 
         // Retrieve the detected object image from the intent
-        val detectedObjectUri = intent.getStringExtra("detectedObjectBitmap")
+        val detectedObjectUri = intent.getStringExtra("detectedImageUri")
 
-        Log.d("sssssssssssssssss", detectedObjectUri.toString())
+        Log.d("detectedImageUri", detectedObjectUri.toString())
         // Display the detected object image in an ImageView
         val imageView = findViewById<ImageView>(R.id.btn)
         val desiredWidth = imageView.width
@@ -24,15 +24,5 @@ class DetectedObjectImageActivity : AppCompatActivity() {
 
         Picasso.get().load(detectedObjectUri).into(imageView);
 
-// Scale the detectedObjectBitmap to fit the ImageView
-
-// Scale the detectedObjectBitmap to fit the ImageView
-//        val scaledBitmap =
-//            Bitmap.createScaledBitmap(detectedObjectBitmap!!, desiredWidth, desiredHeight, false)
-
-// Set the scaled bitmap in the ImageView
-
-// Set the scaled bitmap in the ImageView
-//        imageView.setImageBitmap(detectedObjectBitmap)
     }
 }
