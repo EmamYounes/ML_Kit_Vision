@@ -205,12 +205,12 @@ class CameraXSourceDemoActivity : AppCompatActivity(), CompoundButton.OnCheckedC
             val screenArea = previewView!!.width * previewView!!.height.toFloat()
 
             val objectArea = boundingBox.width() * boundingBox.height()
-            val percentage = (objectArea / screenArea)
+            (objectArea / screenArea)
             val objectScreenRect = Rect(
-                translateX(boundingBox.left, previewView!!.width),
-                translateY(boundingBox.top, previewView!!.height),
-                translateX(boundingBox.right, previewView!!.width),
-                translateY(boundingBox.bottom, previewView!!.height)
+                translateX(boundingBox.left, targetBorder!!.width),
+                translateY(boundingBox.top, targetBorder.height),
+                translateX(boundingBox.right, targetBorder.width),
+                translateY(boundingBox.bottom, targetBorder.height)
             )
 
             val width = boundingBox.width()
