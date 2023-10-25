@@ -20,6 +20,7 @@ import android.content.Intent
 import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.Rect
+import android.graphics.RectF
 import android.net.Uri
 import android.os.Build.VERSION_CODES
 import android.os.Bundle
@@ -217,14 +218,22 @@ class CameraXSourceDemoActivity : AppCompatActivity(), CompoundButton.OnCheckedC
             val height = boundingBox.height()
             val aspectRatio = width.toFloat() / height
             val rectangleThreshold = 0.8 // You can adjust this threshold as needed
+            val rect = RectF(`object`.boundingBox)
+            Log.d("sssssssssssssssssss", rect.toString())
 
-            if (!isDetectedObjectImageActivityOpen && isRectWithinTargetBorder(
+            if (!isDetectedObjectImageActivityOpen && areRectangles90PercentSimilar(
                     objectScreenRect,
                     targetBorderRect
+                ) && `object`.labels.isNotEmpty() && (`object`.labels[0].text.contains(
+                    "Driving License", true
+                ) || `object`.labels[0].text.contains(
+                    "Vehicle License", true
                 )
+                        )
             ) {
                 // Check if the object is stable, preventing multiple captures of the same object
-                if (isObjectStable(boundingBox)) {
+                if (isObjectStable(boundingBox)
+                ) {
                     graphicOverlay!!.add(ObjectGraphic(graphicOverlay!!, `object`))
 
                     // Capture and send the image as a URI to DetectedObjectImageActivity
@@ -237,48 +246,65 @@ class CameraXSourceDemoActivity : AppCompatActivity(), CompoundButton.OnCheckedC
                     isDetectedObjectImageActivityOpen = true
                 }
             }
-
-//            if (!isDetectedObjectImageActivityOpen && `object`.labels.isNotEmpty() &&
-//                aspectRatio >= rectangleThreshold && percentage > .95
-////                (`object`.labels[0].text.contains(
-////                    "card",
-////                    true
-////                ) || `object`.labels[0].text.contains(
-////                    "license",
-////                    true
-////                )) /*&& `object`.labels[0].confidence > .45*/ && percentage > .95
-//            ) {
-//
-//                // Create an Intent to navigate to the DetectedObjectImageActivity
-//
-//                val intent = Intent(this, DetectedObjectImageActivity::class.java)
-//                // Pass the detected object image as an extra
-//
-//                // Pass the detected object image as an extra
-//                intent.putExtra(
-//                    "detectedImageUri",
-//                    previewView?.bitmap?.let { bitmapToUri(it).toString() }
-//                )
-//                previewView?.bitmap?.let { bitmapToUri(it).toString() }
-//                    ?.let { Log.d("sssssssssssssssssssss", it) }
-//
-//                // Start the new activity
-//
-//                // Start the new activity
-//                startActivity(intent)
-//
-//                Toast.makeText(this, `object`.labels[0].text, Toast.LENGTH_LONG).show()
-//                isDetectedObjectImageActivityOpen = true
-
-//            }
         }
         graphicOverlay!!.add(InferenceInfoGraphic(graphicOverlay!!))
         graphicOverlay!!.postInvalidate()
     }
 
-    private fun isRectWithinTargetBorder(rect: Rect, targetBorderRect: Rect): Boolean {
-        return Rect.intersects(rect, targetBorderRect)
+    private fun cropBitmapRegion(originalBmp: Bitmap, rect: Rect): Bitmap {
+        val rectanglePositionX = rect.left
+        val rectanglePositionY = rect.top
+        val rectangleWidth = rect.width()
+        val rectangleHeight = rect.height()
+
+        // Ensure the cropping coordinates and dimensions are within bounds
+        val cropX = Integer.max(0, rectanglePositionX)
+        val cropY = Integer.max(0, rectanglePositionY)
+        val cropWidth = Integer.min(originalBmp.width - cropX, rectangleWidth)
+        val cropHeight = Integer.min(originalBmp.height - cropY, rectangleHeight)
+
+        return Bitmap.createBitmap(originalBmp, 0, cropY, originalBmp.width, cropHeight)
     }
+
+
+    private fun isRectWithinTargetBorder(rect: Rect, targetBorderRect: Rect): Boolean {
+        val rectF = RectF(rect)
+        val targetRectF = RectF(targetBorderRect)
+
+        if (rectF.intersect(targetRectF)) {
+            val intersectionArea = (rectF.width() + 75f) * (rectF.height() + 75f)
+            val rectArea = rectF.width() * rectF.height()
+
+            val overlapPercentage = intersectionArea / rectArea
+
+            return overlapPercentage >= 0.80 && rect.left.minus(targetBorderRect.left) < 30 && rect.left.minus(
+                targetBorderRect.left
+            ) > 0
+        }
+
+        return false
+    }
+
+
+    private fun areRectangles90PercentSimilar(rect1: Rect, rect2: Rect): Boolean {
+        // Calculate the area of each rectangle
+        val areaRect1 = rect1.width() * rect1.height()
+        val areaRect2 = rect2.width() * rect2.height()
+
+        // Calculate the overlap area by finding the intersection of the two rectangles
+        val overlapRect = Rect()
+        overlapRect.setIntersect(rect1, rect2)
+
+        // Calculate the area of the overlap region
+        val areaOverlap = overlapRect.width() * overlapRect.height()
+
+        // Calculate the minimum area between the two rectangles
+        val minArea = areaRect1.coerceAtMost(areaRect2)
+
+        // Check if the area of overlap is at least 90% of the smaller rectangle's area
+        return areaOverlap == minArea
+    }
+
 
     // Calculate the translated X-coordinate
     private fun translateX(x: Int, previewViewWidth: Int): Int {
@@ -357,6 +383,7 @@ class CameraXSourceDemoActivity : AppCompatActivity(), CompoundButton.OnCheckedC
     companion object {
         private const val TAG = "CameraXSourcePreview"
         private val localModel: LocalModel =
-            LocalModel.Builder().setAssetFilePath("custom_models/object_labeler.tflite").build()
+            LocalModel.Builder().setAssetFilePath("custom_models/license_custom_model.tflite")
+                .build()
     }
 }

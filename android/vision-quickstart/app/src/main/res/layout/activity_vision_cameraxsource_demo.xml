@@ -9,15 +9,16 @@
     <androidx.camera.view.PreviewView
         android:id="@+id/preview_view"
         android:layout_width="match_parent"
-        android:layout_height="280dp"
+        android:layout_height="0dp"
         app:layout_constraintBottom_toTopOf="@+id/control"
         app:layout_constraintTop_toTopOf="parent" />
 
     <FrameLayout
         android:id="@+id/target_border"
         android:layout_width="match_parent"
-        android:layout_height="280dp"
-        android:background="@drawable/bounded_rectangle"
+        android:layout_height="250dp"
+        android:layout_margin="12dp"
+        android:background="@drawable/camera_window"
         app:layout_constraintBottom_toTopOf="@+id/control"
         app:layout_constraintTop_toTopOf="parent">
 
